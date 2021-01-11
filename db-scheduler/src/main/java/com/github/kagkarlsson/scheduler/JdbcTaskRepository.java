@@ -19,6 +19,7 @@ import com.github.kagkarlsson.jdbc.JdbcRunner;
 import com.github.kagkarlsson.jdbc.ResultSetMapper;
 import com.github.kagkarlsson.jdbc.SQLRuntimeException;
 import com.github.kagkarlsson.scheduler.TaskResolver.UnresolvedTask;
+import com.github.kagkarlsson.scheduler.enums.TaskStatus;
 import com.github.kagkarlsson.scheduler.jdbc.AndCondition;
 import com.github.kagkarlsson.scheduler.jdbc.AutodetectJdbcCustomization;
 import com.github.kagkarlsson.scheduler.jdbc.JdbcCustomization;
@@ -87,15 +88,16 @@ public class JdbcTaskRepository implements TaskRepository {
             }
 
             jdbcRunner.execute(
-                    "insert into " + tableName + "(task_name, task_instance, task_data, execution_time, picked, version) values(?, ?, ?, ?, ?, ?)",
-                    (PreparedStatement p) -> {
-                        p.setString(1, execution.taskInstance.getTaskName());
-                        p.setString(2, execution.taskInstance.getId());
-                        p.setObject(3, serializer.serialize(execution.taskInstance.getData()));
-                        jdbcCustomization.setInstant(p, 4, execution.executionTime);
-                        p.setBoolean(5, false);
-                        p.setLong(6, 1L);
-                    });
+                "insert into " + tableName + "(task_name, task_instance, task_data, execution_time, picked, version, status) values(?, ?, ?, ?, ?, ?, ?)",
+                (PreparedStatement p) -> {
+                    p.setString(1, execution.taskInstance.getTaskName());
+                    p.setString(2, execution.taskInstance.getId());
+                    p.setObject(3, serializer.serialize(execution.taskInstance.getData()));
+                    jdbcCustomization.setInstant(p, 4, execution.executionTime);
+                    p.setBoolean(5, false);
+                    p.setLong(6, 1L);
+                    p.setString(7,TaskStatus.SUBMITTED.name());
+                });
             return true;
 
         } catch (SQLRuntimeException e) {
@@ -127,8 +129,8 @@ public class JdbcTaskRepository implements TaskRepository {
         q.andCondition(new TaskCondition(taskName));
 
         jdbcRunner.query(q.getQuery(),
-                q.getPreparedStatementSetter(),
-                new ExecutionResultSetConsumer(consumer)
+            q.getPreparedStatementSetter(),
+            new ExecutionResultSetConsumer(consumer)
         );
     }
 
@@ -137,15 +139,15 @@ public class JdbcTaskRepository implements TaskRepository {
         final UnresolvedFilter unresolvedFilter = new UnresolvedFilter(taskResolver.getUnresolved());
 
         return jdbcRunner.query(
-                "select * from " + tableName + " where picked = ? and execution_time <= ? " + unresolvedFilter.andCondition() + " order by execution_time asc",
-                (PreparedStatement p) -> {
-                    int index = 1;
-                    p.setBoolean(index++, false);
-                    jdbcCustomization.setInstant(p, index++, now);
-                    unresolvedFilter.setParameters(p, index);
-                    p.setMaxRows(limit);
-                },
-                new ExecutionResultSetMapper()
+            "select * from " + tableName + " where picked = ? and execution_time <= ? " + unresolvedFilter.andCondition() + " order by execution_time asc",
+            (PreparedStatement p) -> {
+                int index = 1;
+                p.setBoolean(index++, false);
+                jdbcCustomization.setInstant(p, index++, now);
+                unresolvedFilter.setParameters(p, index);
+                p.setMaxRows(limit);
+            },
+            new ExecutionResultSetMapper()
         );
     }
 
@@ -153,11 +155,11 @@ public class JdbcTaskRepository implements TaskRepository {
     public void remove(Execution execution) {
 
         final int removed = jdbcRunner.execute("delete from " + tableName + " where task_name = ? and task_instance = ? and version = ?",
-                ps -> {
-                    ps.setString(1, execution.taskInstance.getTaskName());
-                    ps.setString(2, execution.taskInstance.getId());
-                    ps.setLong(3, execution.version);
-                }
+            ps -> {
+                ps.setString(1, execution.taskInstance.getTaskName());
+                ps.setString(2, execution.taskInstance.getId());
+                ps.setLong(3, execution.version);
+            }
         );
 
         if (removed != 1) {
@@ -177,36 +179,38 @@ public class JdbcTaskRepository implements TaskRepository {
 
     private boolean rescheduleInternal(Execution execution, Instant nextExecutionTime, NewData newData, Instant lastSuccess, Instant lastFailure, int consecutiveFailures) {
         final int updated = jdbcRunner.execute(
-                "update " + tableName + " set " +
-                        "picked = ?, " +
-                        "picked_by = ?, " +
-                        "last_heartbeat = ?, " +
-                        "last_success = ?, " +
-                        "last_failure = ?, " +
-                        "consecutive_failures = ?, " +
-                        "execution_time = ?, " +
-                        (newData != null ? "task_data = ?, " : "") +
-                        "version = version + 1 " +
-                        "where task_name = ? " +
-                        "and task_instance = ? " +
-                        "and version = ?",
-                ps -> {
-                    int index = 1;
-                    ps.setBoolean(index++, false);
-                    ps.setString(index++, null);
-                    jdbcCustomization.setInstant(ps, index++, null);
-                    jdbcCustomization.setInstant(ps, index++, ofNullable(lastSuccess).orElse(null));
-                    jdbcCustomization.setInstant(ps, index++, ofNullable(lastFailure).orElse(null));
-                    ps.setInt(index++, consecutiveFailures);
-                    jdbcCustomization.setInstant(ps, index++, nextExecutionTime);
-                    if (newData != null) {
-                        // may cause datbase-specific problems, might have to use setNull instead
-                        ps.setObject(index++, serializer.serialize(newData.data));
-                    }
-                    ps.setString(index++, execution.taskInstance.getTaskName());
-                    ps.setString(index++, execution.taskInstance.getId());
-                    ps.setLong(index++, execution.version);
-                });
+            "update " + tableName + " set " +
+                "picked = ?, " +
+                "picked_by = ?, " +
+                "last_heartbeat = ?, " +
+                "last_success = ?, " +
+                "last_failure = ?, " +
+                "consecutive_failures = ?, " +
+                "execution_time = ?, " +
+                (newData != null ? "task_data = ?, " : "") +
+                "version = version + 1, " +
+                "status = ? " +
+                "where task_name = ? " +
+                "and task_instance = ? " +
+                "and version = ?",
+            ps -> {
+                int index = 1;
+                ps.setBoolean(index++, false);
+                ps.setString(index++, null);
+                jdbcCustomization.setInstant(ps, index++, null);
+                jdbcCustomization.setInstant(ps, index++, ofNullable(lastSuccess).orElse(null));
+                jdbcCustomization.setInstant(ps, index++, ofNullable(lastFailure).orElse(null));
+                ps.setInt(index++, consecutiveFailures);
+                jdbcCustomization.setInstant(ps, index++, nextExecutionTime);
+                if (newData != null) {
+                    // may cause datbase-specific problems, might have to use setNull instead
+                    ps.setObject(index++, serializer.serialize(newData.data));
+                }
+                ps.setString(index++, TaskStatus.RESCHEDULED.name());
+                ps.setString(index++, execution.taskInstance.getTaskName());
+                ps.setString(index++, execution.taskInstance.getId());
+                ps.setLong(index++, execution.version);
+            });
 
         if (updated != 1) {
             throw new RuntimeException("Expected one execution to be updated, but updated " + updated + ". Indicates a bug.");
@@ -218,20 +222,22 @@ public class JdbcTaskRepository implements TaskRepository {
     @SuppressWarnings({"unchecked"})
     public Optional<Execution> pick(Execution e, Instant timePicked) {
         final int updated = jdbcRunner.execute(
-                "update " + tableName + " set picked = ?, picked_by = ?, last_heartbeat = ?, version = version + 1 " +
-                        "where picked = ? " +
-                        "and task_name = ? " +
-                        "and task_instance = ? " +
-                        "and version = ?",
-                ps -> {
-                    ps.setBoolean(1, true);
-                    ps.setString(2, truncate(schedulerSchedulerName.getName(), 50));
-                    jdbcCustomization.setInstant(ps, 3, timePicked);
-                    ps.setBoolean(4, false);
-                    ps.setString(5, e.taskInstance.getTaskName());
-                    ps.setString(6, e.taskInstance.getId());
-                    ps.setLong(7, e.version);
-                });
+            "update " + tableName + " set picked = ?, picked_by = ?, last_heartbeat = ?, version = version + 1," +
+                "status = ? " +
+                "where picked = ? " +
+                "and task_name = ? " +
+                "and task_instance = ? " +
+                "and version = ?",
+            ps -> {
+                ps.setBoolean(1, true);
+                ps.setString(2, truncate(schedulerSchedulerName.getName(), 50));
+                jdbcCustomization.setInstant(ps, 3, timePicked);
+                ps.setString(4,TaskStatus.INITIATED.name());
+                ps.setBoolean(5, false);
+                ps.setString(6, e.taskInstance.getTaskName());
+                ps.setString(7, e.taskInstance.getId());
+                ps.setLong(8, e.version);
+            });
 
         if (updated == 0) {
             LOG.trace("Failed to pick execution. It must have been picked by another scheduler.", e);
@@ -253,14 +259,14 @@ public class JdbcTaskRepository implements TaskRepository {
     public List<Execution> getDeadExecutions(Instant olderThan) {
         final UnresolvedFilter unresolvedFilter = new UnresolvedFilter(taskResolver.getUnresolved());
         return jdbcRunner.query(
-                "select * from " + tableName + " where picked = ? and last_heartbeat <= ? " + unresolvedFilter.andCondition() + " order by last_heartbeat asc",
-                (PreparedStatement p) -> {
-                    int index = 1;
-                    p.setBoolean(index++, true);
-                    jdbcCustomization.setInstant(p, index++, olderThan);
-                    unresolvedFilter.setParameters(p, index);
-                },
-                new ExecutionResultSetMapper()
+            "select * from " + tableName + " where picked = ? and last_heartbeat <= ? " + unresolvedFilter.andCondition() + " order by last_heartbeat asc",
+            (PreparedStatement p) -> {
+                int index = 1;
+                p.setBoolean(index++, true);
+                jdbcCustomization.setInstant(p, index++, olderThan);
+                unresolvedFilter.setParameters(p, index);
+            },
+            new ExecutionResultSetMapper()
         );
     }
 
@@ -268,19 +274,19 @@ public class JdbcTaskRepository implements TaskRepository {
     public void updateHeartbeat(Execution e, Instant newHeartbeat) {
 
         final int updated = jdbcRunner.execute(
-                "update " + tableName + " set last_heartbeat = ? " +
-                        "where task_name = ? " +
-                        "and task_instance = ? " +
-                        "and version = ?",
-                ps -> {
-                    jdbcCustomization.setInstant(ps, 1, newHeartbeat);
-                    ps.setString(2, e.taskInstance.getTaskName());
-                    ps.setString(3, e.taskInstance.getId());
-                    ps.setLong(4, e.version);
-                });
+            "update " + tableName + " set last_heartbeat = ? " +
+                "where task_name = ? " +
+                "and task_instance = ? " +
+                "and version = ?",
+            ps -> {
+                jdbcCustomization.setInstant(ps, 1, newHeartbeat);
+                ps.setString(2, e.taskInstance.getTaskName());
+                ps.setString(3, e.taskInstance.getId());
+                ps.setLong(4, e.version);
+            });
 
         if (updated == 0) {
-            LOG.trace("Did not update heartbeat. Execution must have been removed or rescheduled.", e);
+            LOG.trace("Did not update heartbeat. Execution must have been removed or rescheduled. {}", e);
         } else {
             if (updated > 1) {
                 throw new IllegalStateException("Updated multiple rows updating heartbeat for execution. Should never happen since name and id is primary key. Execution: " + e);
@@ -293,16 +299,16 @@ public class JdbcTaskRepository implements TaskRepository {
     public List<Execution> getExecutionsFailingLongerThan(Duration interval) {
         UnresolvedFilter unresolvedFilter = new UnresolvedFilter(taskResolver.getUnresolved());
         return jdbcRunner.query(
-                "select * from " + tableName + " where " +
-                        "    ((last_success is null and last_failure is not null)" +
-                        "    or (last_failure is not null and last_success < ?)) " +
-                        unresolvedFilter.andCondition(),
-                (PreparedStatement p) -> {
-                    int index = 1;
-                    jdbcCustomization.setInstant(p, index++, Instant.now().minus(interval));
-                    unresolvedFilter.setParameters(p, index);
-                },
-                new ExecutionResultSetMapper()
+            "select * from " + tableName + " where " +
+                "    ((last_success is null and last_failure is not null)" +
+                "    or (last_failure is not null and last_success < ?)) " +
+                unresolvedFilter.andCondition(),
+            (PreparedStatement p) -> {
+                int index = 1;
+                jdbcCustomization.setInstant(p, index++, Instant.now().minus(interval));
+                unresolvedFilter.setParameters(p, index);
+            },
+            new ExecutionResultSetMapper()
         );
     }
 
@@ -312,12 +318,12 @@ public class JdbcTaskRepository implements TaskRepository {
 
     public Optional<Execution> getExecution(String taskName, String taskInstanceId) {
         final List<Execution> executions = jdbcRunner.query(
-                "select * from " + tableName + " where task_name = ? and task_instance = ?",
-                (PreparedStatement p) -> {
-                    p.setString(1, taskName);
-                    p.setString(2, taskInstanceId);
-                },
-                new ExecutionResultSetMapper()
+            "select * from " + tableName + " where task_name = ? and task_instance = ?",
+            (PreparedStatement p) -> {
+                p.setString(1, taskName);
+                p.setString(2, taskInstanceId);
+            },
+            new ExecutionResultSetMapper()
         );
         if (executions.size() > 1) {
             throw new RuntimeException(String.format("Found more than one matching execution for task name/id combination: '%s'/'%s'", taskName, taskInstanceId));
@@ -334,6 +340,92 @@ public class JdbcTaskRepository implements TaskRepository {
             });
     }
 
+
+    @Override
+    public void markInitiated(Execution execution) {
+        updateStatus(execution,TaskStatus.INITIATED);
+    }
+
+    @Override
+    public void markCompleted(Execution execution) {
+        final int updated = jdbcRunner.execute(
+            "update " + tableName + " set status = ?, last_success = ? " +
+                "where task_name = ? " +
+                "and task_instance = ? " +
+                "and version = ?",
+            ps -> {
+                ps.setString(1, TaskStatus.COMPETED.name());
+                jdbcCustomization.setInstant(ps, 2, Instant.now());
+                ps.setString(3, execution.taskInstance.getTaskName());
+                ps.setString(4, execution.taskInstance.getId());
+                ps.setLong(5, execution.version);
+            });
+
+        if (updated == 0) {
+            throw new IllegalStateException("Update failed. Should never happen since name and id is primary key. Execution: " + execution);
+        }
+        LOG.debug("{} Marked execution: {}",TaskStatus.COMPETED, execution);
+    }
+
+    @Override
+    public void markFailed(Execution execution) {
+        final int updated = jdbcRunner.execute(
+            "update " + tableName + " set status = ?, last_failure = ? " +
+                "where task_name = ? " +
+                "and task_instance = ? " +
+                "and version = ?",
+            ps -> {
+                ps.setString(1, TaskStatus.FAILED.name());
+                jdbcCustomization.setInstant(ps, 2, Instant.now());
+                ps.setString(3, execution.taskInstance.getTaskName());
+                ps.setString(4, execution.taskInstance.getId());
+                ps.setLong(5, execution.version);
+            });
+
+        if (updated == 0) {
+            throw new IllegalStateException("Update failed. Should never happen since name and id is primary key. Execution: " + execution);
+        }
+        LOG.debug("{} Marked execution: {}",TaskStatus.FAILED, execution);
+    }
+
+    @Override
+    public void markCancelled(Execution execution) {
+        updateStatus(execution,TaskStatus.CANCELLED);
+    }
+
+    @Override
+    public void markDead(Execution execution) {
+        updateStatus(execution,TaskStatus.DEAD);
+    }
+
+    @Override
+    public int markDead(String taskName) {
+        return jdbcRunner.execute("update " + tableName + " set status = ? where task_name = ?",
+            (PreparedStatement p) -> {
+                p.setString(1, TaskStatus.DEAD.name());
+                p.setString(2, taskName);
+            });
+    }
+
+    private void updateStatus(Execution execution, TaskStatus status) {
+        final int updated = jdbcRunner.execute(
+            "update " + tableName + " set status = ? " +
+                "where task_name = ? " +
+                "and task_instance = ? " +
+                "and version = ?",
+            ps -> {
+                ps.setString(1, status.name());
+                ps.setString(2, execution.taskInstance.getTaskName());
+                ps.setString(3, execution.taskInstance.getId());
+                ps.setLong(4, execution.version);
+            });
+
+        if (updated == 0) {
+            throw new IllegalStateException("Update failed. Should never happen since name and id is primary key. Execution: " + execution);
+        }
+        LOG.debug("{} Marked execution: {}",status, execution);
+    }
+
     private QueryBuilder queryForFilter(ScheduledExecutionsFilter filter) {
         final QueryBuilder q = QueryBuilder.selectFromTable(tableName);
 
@@ -344,7 +436,6 @@ public class JdbcTaskRepository implements TaskRepository {
         q.orderBy("execution_time asc");
         return q;
     }
-
 
 
     private class ExecutionResultSetMapper implements ResultSetMapper<List<Execution>> {
@@ -393,14 +484,15 @@ public class JdbcTaskRepository implements TaskRepository {
 
                 boolean picked = rs.getBoolean("picked");
                 final String pickedBy = rs.getString("picked_by");
-                Instant lastSuccess = jdbcCustomization.getInstant(rs,"last_success");
-                Instant lastFailure = jdbcCustomization.getInstant(rs,"last_failure");
+                Instant lastSuccess = jdbcCustomization.getInstant(rs, "last_success");
+                Instant lastFailure = jdbcCustomization.getInstant(rs, "last_failure");
                 int consecutiveFailures = rs.getInt("consecutive_failures"); // null-value is returned as 0 which is the preferred default
-                Instant lastHeartbeat = jdbcCustomization.getInstant(rs,"last_heartbeat");
+                Instant lastHeartbeat = jdbcCustomization.getInstant(rs, "last_heartbeat");
                 long version = rs.getLong("version");
+                String status = rs.getString("status");
 
                 Supplier dataSupplier = memoize(() -> serializer.deserialize(task.get().getDataClass(), data));
-                this.consumer.accept(new Execution(executionTime, new TaskInstance(taskName, instanceId, dataSupplier), picked, pickedBy, lastSuccess, lastFailure, consecutiveFailures, lastHeartbeat, version));
+                this.consumer.accept(new Execution(executionTime, new TaskInstance(taskName, instanceId, dataSupplier), picked, pickedBy, lastSuccess, lastFailure, consecutiveFailures, lastHeartbeat, version, status));
             }
 
             return null;
@@ -411,11 +503,13 @@ public class JdbcTaskRepository implements TaskRepository {
         return new Supplier<T>() {
             Supplier<T> delegate = this::firstTime;
             boolean initialized;
+
             public T get() {
                 return delegate.get();
             }
+
             private synchronized T firstTime() {
-                if(!initialized) {
+                if (!initialized) {
                     T value = original.get();
                     delegate = () -> value;
                     initialized = true;
@@ -427,6 +521,7 @@ public class JdbcTaskRepository implements TaskRepository {
 
     private static class NewData {
         private final Object data;
+
         NewData(Object data) {
             this.data = data;
         }

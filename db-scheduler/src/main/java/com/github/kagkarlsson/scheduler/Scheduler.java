@@ -225,43 +225,14 @@ public class Scheduler implements SchedulerClient {
 
     @SuppressWarnings({"rawtypes","unchecked"})
     protected void detectDeadExecutions() {
-        LOG.debug("Deleting executions with unresolved tasks.");
+        LOG.debug("Marking DEAD executions with unresolved tasks.");
         taskResolver.getUnresolvedTaskNames(deleteUnresolvedAfter)
             .forEach(taskName -> {
-                LOG.warn("Deleting all executions for task with name '{}'. They have been unresolved for more than {}", taskName, deleteUnresolvedAfter);
-                int removed = schedulerTaskRepository.removeExecutions(taskName);
-                LOG.info("Removed {} executions", removed);
+                LOG.warn("Marking DEAD all executions for task with name '{}'. They have been unresolved for more than {}", taskName, deleteUnresolvedAfter);
+                int removed = schedulerTaskRepository.markDead(taskName);
+                LOG.info("Marked DEAD {} executions", removed);
                 taskResolver.clearUnresolved(taskName);
             });
-
-        LOG.debug("Checking for dead executions.");
-        Instant now = clock.now();
-        final Instant oldAgeLimit = now.minus(getMaxAgeBeforeConsideredDead());
-        List<Execution> oldExecutions = schedulerTaskRepository.getDeadExecutions(oldAgeLimit);
-
-        if (!oldExecutions.isEmpty()) {
-            oldExecutions.forEach(execution -> {
-
-                LOG.info("Found dead execution. Delegating handling to task. Execution: " + execution);
-                try {
-
-                    Optional<Task> task = taskResolver.resolve(execution.taskInstance.getTaskName());
-                    if (task.isPresent()) {
-                        statsRegistry.register(SchedulerStatsEvent.DEAD_EXECUTION);
-                        task.get().getDeadExecutionHandler().deadExecution(execution, new ExecutionOperations(schedulerTaskRepository, execution));
-                    } else {
-                        LOG.error("Failed to find implementation for task with name '{}' for detected dead execution. Either delete the execution from the databaser, or add an implementation for it.", execution.taskInstance.getTaskName());
-                    }
-
-                } catch (Throwable e) {
-                    LOG.error("Failed while handling dead execution {}. Will be tried again later.", execution, e);
-                    statsRegistry.register(SchedulerStatsEvent.UNEXPECTED_ERROR);
-                }
-            });
-        } else {
-            LOG.trace("No dead executions found.");
-        }
-        statsRegistry.register(SchedulerStatsEvent.RAN_DETECT_DEAD);
     }
 
     void updateHeartbeats() {

@@ -15,6 +15,8 @@
  */
 package com.github.kagkarlsson.scheduler.task;
 
+import com.github.kagkarlsson.scheduler.enums.TaskStatus;
+
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
@@ -50,7 +52,7 @@ public class ExecutionComplete {
      */
     public static ExecutionComplete simulatedSuccess(Instant timeDone) {
         TaskInstance nonExistingTaskInstance = new TaskInstance("non-existing-task", "non-existing-id");
-        Execution nonExistingExecution = new Execution(timeDone, nonExistingTaskInstance, false, "simulated-picked-by", timeDone, null, 0, null, 1);
+        Execution nonExistingExecution = new Execution(timeDone, nonExistingTaskInstance, false, "simulated-picked-by", timeDone, null, 0, null, 1, TaskStatus.SUBMITTED.name());
         return new ExecutionComplete(nonExistingExecution, timeDone.minus(Duration.ofSeconds(1)), timeDone, Result.OK, null);
     }
 

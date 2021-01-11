@@ -170,7 +170,7 @@ public interface SchedulerClient {
         public static Builder create(DataSource dataSource, List<Task<?>> knownTasks) {
             return new Builder(dataSource, knownTasks);
         }
-        
+
         public Builder serializer(Serializer serializer) {
             this.serializer = serializer;
             return this;
@@ -265,7 +265,7 @@ public interface SchedulerClient {
                     throw new RuntimeException(String.format("Could not cancel schedule, the execution with name '%s' and id '%s' is currently executing", taskName, instanceId));
                 }
 
-                taskRepository.remove(execution.get());
+                taskRepository.markCancelled(execution.get());
                 notifyListeners(ClientEvent.EventType.CANCEL, taskInstanceId, execution.get().executionTime);
             } else {
                 throw new RuntimeException(String.format("Could not cancel schedule - no task with name '%s' and id '%s' was found.", taskName, instanceId));

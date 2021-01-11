@@ -15,6 +15,8 @@
  */
 package com.github.kagkarlsson.scheduler.task;
 
+import com.github.kagkarlsson.scheduler.enums.TaskStatus;
+
 import java.time.Instant;
 import java.util.Objects;
 
@@ -29,13 +31,14 @@ public final class Execution {
     public final long version;
     public final Instant lastFailure;
     public final Instant lastSuccess;
+    public final String status;
 
     public Execution(Instant executionTime, TaskInstance taskInstance) {
-        this(executionTime, taskInstance, false, null, null, null, 0, null, 1L);
+        this(executionTime, taskInstance, false, null, null, null, 0, null, 1L, TaskStatus.SUBMITTED.name());
     }
 
     public Execution(Instant executionTime, TaskInstance taskInstance, boolean picked, String pickedBy,
-                     Instant lastSuccess, Instant lastFailure, int consecutiveFailures, Instant lastHeartbeat, long version) {
+                     Instant lastSuccess, Instant lastFailure, int consecutiveFailures, Instant lastHeartbeat, long version, String status) {
         this.executionTime = executionTime;
         this.taskInstance = taskInstance;
         this.picked = picked;
@@ -45,6 +48,7 @@ public final class Execution {
         this.consecutiveFailures = consecutiveFailures;
         this.lastHeartbeat = lastHeartbeat;
         this.version = version;
+        this.status = status;
     }
 
     public Instant getExecutionTime() {
@@ -80,6 +84,7 @@ public final class Execution {
                 ", picked=" + picked +
                 ", pickedBy=" + pickedBy +
                 ", lastHeartbeat=" + lastHeartbeat +
-                ", version=" + version;
+                ", version=" + version +
+                ", status=" + status;
     }
 }

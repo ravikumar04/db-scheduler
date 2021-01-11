@@ -33,6 +33,18 @@ public class ExecutionOperations<T> {
         taskRepository.remove(execution);
     }
 
+    public void failed() {
+        taskRepository.markFailed(execution);
+    }
+
+    public void completed() {
+        taskRepository.markCompleted(execution);
+    }
+
+    public void dead() {
+        taskRepository.markDead(execution);
+    }
+
     public void reschedule(ExecutionComplete completed, Instant nextExecutionTime) {
         if (completed.getResult() == ExecutionComplete.Result.OK) {
             taskRepository.reschedule(execution, nextExecutionTime, completed.getTimeDone(), execution.lastFailure, 0);

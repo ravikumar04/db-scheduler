@@ -26,12 +26,17 @@ import java.util.function.Consumer;
 public interface TaskRepository {
 
     boolean createIfNotExists(Execution execution);
+
     List<Execution> getDue(Instant now, int limit);
+
     void getScheduledExecutions(ScheduledExecutionsFilter filter, Consumer<Execution> consumer);
+
     void getScheduledExecutions(ScheduledExecutionsFilter filter, String taskName, Consumer<Execution> consumer);
 
     void remove(Execution execution);
+
     boolean reschedule(Execution execution, Instant nextExecutionTime, Instant lastSuccess, Instant lastFailure, int consecutiveFailures);
+
     boolean reschedule(Execution execution, Instant nextExecutionTime, Object newData, Instant lastSuccess, Instant lastFailure, int consecutiveFailures);
 
     Optional<Execution> pick(Execution e, Instant timePicked);
@@ -45,4 +50,16 @@ public interface TaskRepository {
     Optional<Execution> getExecution(String taskName, String taskInstanceId);
 
     int removeExecutions(String taskName);
+
+    void markInitiated(Execution execution);
+
+    void markCompleted(Execution execution);
+
+    void markFailed(Execution execution);
+
+    void markCancelled(Execution execution);
+
+    void markDead(Execution execution);
+
+    int markDead(String taskName);
 }

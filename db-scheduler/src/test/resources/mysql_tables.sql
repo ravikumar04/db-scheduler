@@ -10,5 +10,6 @@ create table test.scheduled_tasks (
   consecutive_failures INT,
   last_heartbeat timestamp(6) null,
   version BIGINT not null,
+  status varchar(50) not null,
   PRIMARY KEY (task_name, task_instance)
 )

@@ -43,4 +43,14 @@ public interface DeadExecutionHandler<T> {
             executionOperations.stop();
         }
     }
+
+    class MarkDeadExecution<T> implements DeadExecutionHandler<T> {
+        private static final Logger LOG = LoggerFactory.getLogger(ReviveDeadExecution.class);
+
+        @Override
+        public void deadExecution(Execution execution, ExecutionOperations<T> executionOperations) {
+            LOG.warn("Marking dead execution: " + execution);
+            executionOperations.dead();
+        }
+    }
 }

@@ -34,6 +34,15 @@ public interface CompletionHandler<T> {
         }
     }
 
+    class OnCompleteMarkCompleted<T> implements CompletionHandler<T> {
+
+        @Override
+        public void complete(ExecutionComplete executionComplete, ExecutionOperations<T> executionOperations) {
+            executionOperations.completed();
+        }
+    }
+
+
     class OnCompleteReschedule<T> implements CompletionHandler<T> {
 
         private static final Logger LOG = LoggerFactory.getLogger(OnCompleteReschedule.class);
