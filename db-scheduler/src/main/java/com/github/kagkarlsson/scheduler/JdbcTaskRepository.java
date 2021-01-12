@@ -349,16 +349,17 @@ public class JdbcTaskRepository implements TaskRepository {
     @Override
     public void markCompleted(Execution execution) {
         final int updated = jdbcRunner.execute(
-            "update " + tableName + " set status = ?, last_success = ? " +
+            "update " + tableName + " set status = ?, last_success = ?, task_data = ? " +
                 "where task_name = ? " +
                 "and task_instance = ? " +
                 "and version = ?",
             ps -> {
                 ps.setString(1, TaskStatus.COMPETED.name());
                 jdbcCustomization.setInstant(ps, 2, Instant.now());
-                ps.setString(3, execution.taskInstance.getTaskName());
-                ps.setString(4, execution.taskInstance.getId());
-                ps.setLong(5, execution.version);
+                ps.setObject(3, serializer.serialize(execution.taskInstance.getData()));
+                ps.setString(4, execution.taskInstance.getTaskName());
+                ps.setString(5, execution.taskInstance.getId());
+                ps.setLong(6, execution.version);
             });
 
         if (updated == 0) {
@@ -370,16 +371,17 @@ public class JdbcTaskRepository implements TaskRepository {
     @Override
     public void markFailed(Execution execution) {
         final int updated = jdbcRunner.execute(
-            "update " + tableName + " set status = ?, last_failure = ? " +
+            "update " + tableName + " set status = ?, last_failure = ?, task_data = ? " +
                 "where task_name = ? " +
                 "and task_instance = ? " +
                 "and version = ?",
             ps -> {
                 ps.setString(1, TaskStatus.FAILED.name());
                 jdbcCustomization.setInstant(ps, 2, Instant.now());
-                ps.setString(3, execution.taskInstance.getTaskName());
-                ps.setString(4, execution.taskInstance.getId());
-                ps.setLong(5, execution.version);
+                ps.setObject(3, serializer.serialize(execution.taskInstance.getData()));
+                ps.setString(4, execution.taskInstance.getTaskName());
+                ps.setString(5, execution.taskInstance.getId());
+                ps.setLong(6, execution.version);
             });
 
         if (updated == 0) {

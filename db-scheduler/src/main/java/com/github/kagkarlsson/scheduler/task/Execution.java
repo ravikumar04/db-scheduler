@@ -18,6 +18,7 @@ package com.github.kagkarlsson.scheduler.task;
 import com.github.kagkarlsson.scheduler.enums.TaskStatus;
 
 import java.time.Instant;
+import java.util.Map;
 import java.util.Objects;
 
 @SuppressWarnings("rawtypes")
