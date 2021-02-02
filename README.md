@@ -29,7 +29,7 @@ See also [why not Quartz?](#why-db-scheduler-when-there-is-quartz)
 <dependency>
     <groupId>com.github.kagkarlsson</groupId>
     <artifactId>db-scheduler</artifactId>
-    <version>9.2</version>
+    <version>9.3</version>
 </dependency>
 ```
 
@@ -65,6 +65,7 @@ List of organizations known to be running db-scheduler in production:
 | [Vy Group](https://www.vy.no/en)          | One of the largest transport groups in the Nordic countries. |
 | [TransferWise](https://transferwise.com/) | A cheap, fast way to send money abroad.                      |
 | Becker Professional Education             |                                                              |
+| [Monitoria](https://monitoria.ca)         | Website monitoring service.                                  |
 
 Feel free to open a PR to add your organization to the list.
 
@@ -213,7 +214,7 @@ For Spring Boot applications, there is a starter `db-scheduler-spring-boot-start
     <dependency>
         <groupId>com.github.kagkarlsson</groupId>
         <artifactId>db-scheduler-spring-boot-starter</artifactId>
-        <version>9.2</version>
+        <version>9.3</version>
     </dependency>
     ```
    **NOTE**: This includes the db-scheduler dependency itself.

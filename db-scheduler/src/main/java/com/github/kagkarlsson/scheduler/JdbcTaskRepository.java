@@ -137,7 +137,7 @@ public class JdbcTaskRepository implements TaskRepository {
     @Override
     public List<Execution> getDue(Instant now, int limit) {
         final UnresolvedFilter unresolvedFilter = new UnresolvedFilter(taskResolver.getUnresolved());
-
+        final String explicitLimit = jdbcCustomization.supportsExplicitQueryLimitPart() ? jdbcCustomization.getQueryLimitPart(limit) : "";
         return jdbcRunner.query(
             "select * from " + tableName + " where picked = ? and execution_time <= ? " + unresolvedFilter.andCondition() + " order by execution_time asc",
             (PreparedStatement p) -> {
@@ -145,7 +145,9 @@ public class JdbcTaskRepository implements TaskRepository {
                 p.setBoolean(index++, false);
                 jdbcCustomization.setInstant(p, index++, now);
                 unresolvedFilter.setParameters(p, index);
-                p.setMaxRows(limit);
+                if (!jdbcCustomization.supportsExplicitQueryLimitPart()) {
+                    p.setMaxRows(limit);
+                }
             },
             new ExecutionResultSetMapper()
         );
