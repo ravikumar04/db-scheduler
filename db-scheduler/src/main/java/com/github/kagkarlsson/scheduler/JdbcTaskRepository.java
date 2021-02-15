@@ -59,7 +59,7 @@ public class JdbcTaskRepository implements TaskRepository {
     private final Serializer serializer;
     private final String tableName;
     private final JdbcCustomization jdbcCustomization;
-
+    private static final String ALL_COLUMNS = " task_name,task_instance,task_data,execution_time,picked,picked_by,last_success,last_failure,consecutive_failures,last_heartbeat,version,status ";
     public JdbcTaskRepository(DataSource dataSource, boolean commitWhenAutocommitDisabled, String tableName, TaskResolver taskResolver, SchedulerName schedulerSchedulerName) {
         this(dataSource, commitWhenAutocommitDisabled, new AutodetectJdbcCustomization(dataSource), tableName, taskResolver, schedulerSchedulerName, Serializer.DEFAULT_JAVA_SERIALIZER);
     }
@@ -139,7 +139,7 @@ public class JdbcTaskRepository implements TaskRepository {
         final UnresolvedFilter unresolvedFilter = new UnresolvedFilter(taskResolver.getUnresolved());
         final String explicitLimit = jdbcCustomization.supportsExplicitQueryLimitPart() ? jdbcCustomization.getQueryLimitPart(limit) : "";
         return jdbcRunner.query(
-            "select * from " + tableName + " where picked = ? and execution_time <= ? " + unresolvedFilter.andCondition() + " order by execution_time asc",
+            "select "+ALL_COLUMNS+ " from " + tableName + " where picked = ? and execution_time <= ? " + unresolvedFilter.andCondition() + " order by execution_time asc",
             (PreparedStatement p) -> {
                 int index = 1;
                 p.setBoolean(index++, false);
@@ -261,10 +261,12 @@ public class JdbcTaskRepository implements TaskRepository {
     public List<Execution> getDeadExecutions(Instant olderThan) {
         final UnresolvedFilter unresolvedFilter = new UnresolvedFilter(taskResolver.getUnresolved());
         return jdbcRunner.query(
-            "select * from " + tableName + " where picked = ? and last_heartbeat <= ? " + unresolvedFilter.andCondition() + " order by last_heartbeat asc",
+            "select " +ALL_COLUMNS+ " from " + tableName + " where picked = ? and status in (?,?) and last_heartbeat <= ? " + unresolvedFilter.andCondition() + " order by last_heartbeat asc",
             (PreparedStatement p) -> {
                 int index = 1;
                 p.setBoolean(index++, true);
+                p.setString(index++, TaskStatus.INITIATED.name());
+                p.setString(index++, TaskStatus.RESCHEDULED.name());
                 jdbcCustomization.setInstant(p, index++, olderThan);
                 unresolvedFilter.setParameters(p, index);
             },
@@ -301,7 +303,7 @@ public class JdbcTaskRepository implements TaskRepository {
     public List<Execution> getExecutionsFailingLongerThan(Duration interval) {
         UnresolvedFilter unresolvedFilter = new UnresolvedFilter(taskResolver.getUnresolved());
         return jdbcRunner.query(
-            "select * from " + tableName + " where " +
+            "select " + ALL_COLUMNS + " from " + tableName + " where " +
                 "    ((last_success is null and last_failure is not null)" +
                 "    or (last_failure is not null and last_success < ?)) " +
                 unresolvedFilter.andCondition(),
@@ -320,7 +322,7 @@ public class JdbcTaskRepository implements TaskRepository {
 
     public Optional<Execution> getExecution(String taskName, String taskInstanceId) {
         final List<Execution> executions = jdbcRunner.query(
-            "select * from " + tableName + " where task_name = ? and task_instance = ?",
+            "select" +ALL_COLUMNS+ "from " + tableName + " where task_name = ? and task_instance = ?",
             (PreparedStatement p) -> {
                 p.setString(1, taskName);
                 p.setString(2, taskInstanceId);
